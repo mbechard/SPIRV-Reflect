@@ -3,21 +3,17 @@ cmake_minimum_required(VERSION 3.1)
 project(spirv-reflect)
 
 OPTION(SPIRV_REFLECT_EXECUTABLE     "Build spirv-reflect executable" ON)
-
+OPTION(SPIRV_REFLECT_EXAMPLES       "Build stripper examples" ON)
+OPTION(SPIRV_REFLECT_STRIPPER       "Build stripper utility" OFF)
 OPTION(SPIRV_REFLECT_STATIC_LIB     "Build a SPIRV-Reflect static library" OFF)
 OPTION(SPIRV_REFLECT_BUILD_TESTS    "Build the SPIRV-Reflect test suite" OFF)
 OPTION(SPIRV_REFLECT_ENABLE_ASSERTS "Enable asserts for debugging" OFF)
-OPTION(SPIRV_REFLECT_ENABLE_ASAN    "Use address sanitization" OFF)
+OPTION(SPIRV_REFLECT_ENABLE_EVALUATION "Enable evaluating constants' result id" ON)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set(CMAKE_CXX_STANDARD 14)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/bin")
-
-if (SPIRV_REFLECT_ENABLE_ASAN)
-    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
-    add_link_options(-fsanitize=address)
-endif()
 
 if (SPIRV_REFLECT_EXECUTABLE)
     # ==========================================================================
@@ -40,13 +36,15 @@ if (SPIRV_REFLECT_EXECUTABLE)
     if (SPIRV_REFLECT_ENABLE_ASSERTS)
         target_compile_definitions(spirv-reflect PRIVATE SPIRV_REFLECT_ENABLE_ASSERTS)
     endif()
-
+    if(SPIRV_REFLECT_ENABLE_EVALUATION)
+        target_compile_definitions(spirv-reflect PRIVATE SPIRV_REFLECT_ENABLE_CONSTANT_EVALUATION=1)
+    endif()
     set_target_properties(spirv-reflect PROPERTIES CXX_STANDARD 11)
     target_include_directories(spirv-reflect PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     if(WIN32)
         target_compile_definitions(spirv-reflect PRIVATE _CRT_SECURE_NO_WARNINGS)
     endif()
-
+    
     install(TARGETS spirv-reflect RUNTIME DESTINATION bin)
 
     # ==========================================================================
@@ -69,17 +67,24 @@ if (SPIRV_REFLECT_EXECUTABLE)
     if (SPIRV_REFLECT_ENABLE_ASSERTS)
         target_compile_definitions(spirv-reflect-pp PRIVATE SPIRV_REFLECT_ENABLE_ASSERTS)
     endif()
+    if(SPIRV_REFLECT_ENABLE_EVALUATION)
+        target_compile_definitions(spirv-reflect-pp PRIVATE SPIRV_REFLECT_ENABLE_CONSTANT_EVALUATION=1)
+    endif()
     set_target_properties(spirv-reflect-pp PROPERTIES CXX_STANDARD 11)
     target_include_directories(spirv-reflect-pp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     if(WIN32)
         target_compile_definitions(spirv-reflect-pp PRIVATE _CRT_SECURE_NO_WARNINGS)
     endif()
-
+    
     install(TARGETS spirv-reflect-pp RUNTIME DESTINATION bin)
 endif()
 
 if (SPIRV_REFLECT_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+if (SPIRV_REFLECT_STRIPPER)
+    add_subdirectory(util/stripper)
 endif()
 
 if (SPIRV_REFLECT_BUILD_TESTS)
@@ -100,6 +105,9 @@ if (SPIRV_REFLECT_BUILD_TESTS)
                           CXX_STANDARD 11)
     target_compile_definitions(test-spirv-reflect PRIVATE
                                $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>)
+    if(SPIRV_REFLECT_ENABLE_EVALUATION)
+        target_compile_definitions(test-spirv-reflect PRIVATE SPIRV_REFLECT_ENABLE_CONSTANT_EVALUATION=1)
+    endif()
     target_link_libraries(test-spirv-reflect gtest_main)
     target_include_directories(test-spirv-reflect PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     add_custom_command(TARGET test-spirv-reflect POST_BUILD
@@ -110,7 +118,9 @@ endif()
 if(SPIRV_REFLECT_STATIC_LIB)
     add_library(spirv-reflect-static STATIC ${CMAKE_CURRENT_SOURCE_DIR}/spirv_reflect.h
                                      ${CMAKE_CURRENT_SOURCE_DIR}/spirv_reflect.c)
-
+    if(SPIRV_REFLECT_ENABLE_EVALUATION)
+        target_compile_definitions(spirv-reflect-static PRIVATE SPIRV_REFLECT_ENABLE_CONSTANT_EVALUATION=1)
+    endif()
     target_include_directories(spirv-reflect-static
                                PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
     install(TARGETS spirv-reflect-static LIBRARY DESTINATION lib)
